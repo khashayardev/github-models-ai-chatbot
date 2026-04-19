@@ -1,0 +1,104 @@
+name: AI ChatBot Workflow
+
+# Trigger from repository_dispatch event (called by frontend)
+on:
+  repository_dispatch:
+    types: [chat-request]
+
+# Permissions needed for GitHub Models and API access
+permissions:
+  contents: read
+  actions: write
+  checks: write
+  metadata: read
+  statuses: write
+  # Important for GitHub Models
+  id-token: write
+
+# Environment variables
+env:
+  PYTHON_VERSION: '3.11'
+  MODEL_ENDPOINT: 'https://models.inference.ai.azure.com'
+
+jobs:
+  process-chat-request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2  # Maximum execution time
+    
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      # Step 2: Setup Python environment
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      # Step 3: Cache pip dependencies
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      # Step 4: Install dependencies
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      # Step 5: Run AI Model Processing
+      - name: Process with GitHub Models
+        id: ai_process
+        run: |
+          cd backend
+          # Extract message and model from client payload
+          MESSAGE='${{ github.event.client_payload.message }}'
+          MODEL_ID='${{ github.event.client_payload.model_id }}'
+          CONVERSATION_HISTORY='${{ github.event.client_payload.history }}'
+          
+          # Run Python script and capture output
+          RESPONSE=$(python model_handler.py \
+            --message "$MESSAGE" \
+            --model "$MODEL_ID" \
+            --history "$CONVERSATION_HISTORY" \
+            2>&1)
+          
+          # Save response to output
+          echo "response=$RESPONSE" >> $GITHUB_OUTPUT
+          
+          # Also save to a file for later retrieval
+          echo "$RESPONSE" > response_output.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Step 6: Save response as artifact for retrieval
+      - name: Upload response artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-response
+          path: backend/response_output.txt
+          retention-days: 1
+          if-no-files-found: error
+      
+      # Step 7: Create workflow output for GitHub API
+      - name: Set workflow output
+        run: |
+          # Create a JSON file with the response
+          echo '{"response": "${{ steps.ai_process.outputs.response }}"}' > workflow_output.json
+          cat workflow_output.json
+      
+      # Step 8: Cleanup old artifacts (optional)
+      - name: Cleanup old artifacts
+        if: always()
+        run: |
+          # Keep only last 10 artifacts
+          echo "Cleaning up old artifacts..."
