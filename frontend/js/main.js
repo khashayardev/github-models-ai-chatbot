@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let currentChatId = null;
 let currentMessages = [];
-let currentModel = APP_CONFIG.app.defaultModel;
+let currentModel = APP_CONFIG?.app?.defaultModel || 'gpt-4o';
 let isProcessing = false;
 
 /**
@@ -26,16 +26,22 @@ async function initApplication() {
     loadSettings();
     
     // Load available models
-    await loadModels();
+    await renderModelSelector();
     
     // Load saved chats
     loadChatHistory();
     
     // Apply theme
-    applyTheme(APP_CONFIG.ui.theme);
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    applyTheme(savedTheme);
     
     // Setup auto-resize for textarea
     setupAutoResize();
+    
+    // Setup connection status
+    window.addEventListener('online', () => updateConnectionStatus(true));
+    window.addEventListener('offline', () => updateConnectionStatus(false));
+    updateConnectionStatus(navigator.onLine);
     
     console.log('Application initialized successfully');
 }
@@ -46,30 +52,38 @@ async function initApplication() {
 function setupEventListeners() {
     // Send message on Enter (Shift+Enter for new line)
     const messageInput = document.getElementById('messageInput');
-    messageInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
+    if (messageInput) {
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
     
     // Send button click
-    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    const sendBtn = document.getElementById('sendBtn');
+    if (sendBtn) sendBtn.addEventListener('click', sendMessage);
     
     // New chat button
-    document.getElementById('newChatBtn').addEventListener('click', startNewChat);
+    const newChatBtn = document.getElementById('newChatBtn');
+    if (newChatBtn) newChatBtn.addEventListener('click', startNewChat);
     
     // Clear chat button
-    document.getElementById('clearChatBtn').addEventListener('click', clearCurrentChat);
+    const clearChatBtn = document.getElementById('clearChatBtn');
+    if (clearChatBtn) clearChatBtn.addEventListener('click', clearCurrentChat);
     
     // Export chat button
-    document.getElementById('exportChatBtn').addEventListener('click', exportChat);
+    const exportChatBtn = document.getElementById('exportChatBtn');
+    if (exportChatBtn) exportChatBtn.addEventListener('click', exportChat);
     
     // Theme toggle
-    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
     
     // Settings button
-    document.getElementById('settingsBtn').addEventListener('click', openSettings);
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) settingsBtn.addEventListener('click', openSettings);
     
     // Sidebar toggle for mobile
     const sidebarToggle = document.getElementById('sidebarToggle');
@@ -115,9 +129,8 @@ async function sendMessage() {
     
     try {
         // Get model parameters
-        const temperature = parseFloat(localStorage.getItem('temperature') || APP_CONFIG.ui.temperature);
-        const maxTokens = parseInt(localStorage.getItem('maxTokens') || APP_CONFIG.ui.maxTokens);
-        const systemPrompt = localStorage.getItem('systemPrompt') || null;
+        const temperature = parseFloat(localStorage.getItem('temperature') || '0.7');
+        const maxTokens = parseInt(localStorage.getItem('maxTokens') || '1000');
         
         // Prepare conversation history (last 10 messages for context)
         const history = currentMessages.slice(-10).map(msg => ({
@@ -149,7 +162,9 @@ async function sendMessage() {
                 });
                 
                 // Update token info display
-                updateTokenInfo(response.estimated_tokens);
+                if (response.estimated_tokens) {
+                    updateTokenInfo(response.estimated_tokens);
+                }
             } else {
                 throw new Error(response?.error || 'Failed to get response');
             }
@@ -171,157 +186,119 @@ async function sendMessage() {
 }
 
 /**
- * Add message to UI
+ * Load a saved chat by ID
+ * @param {string} chatId - Chat ID to load
  */
-function addMessageToUI(role, content, metadata = {}) {
-    const messagesList = document.getElementById('messagesList');
-    const welcomeScreen = document.getElementById('welcomeScreen');
+function loadChat(chatId) {
+    const chats = getSavedChats();
+    const chat = chats[chatId];
     
-    // Hide welcome screen if visible
-    if (welcomeScreen && welcomeScreen.style.display !== 'none') {
+    if (!chat) return;
+    
+    currentChatId = chatId;
+    currentMessages = [...chat.messages];
+    currentModel = chat.model || APP_CONFIG.app.defaultModel;
+    
+    // Clear UI messages
+    const messagesList = document.getElementById('messagesList');
+    if (messagesList) {
+        messagesList.innerHTML = '';
+    }
+    
+    // Hide welcome screen
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    if (welcomeScreen) {
         welcomeScreen.style.display = 'none';
     }
     
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${role}`;
+    // Display all messages
+    currentMessages.forEach(msg => {
+        const metadata = {};
+        if (msg.model) metadata.model = msg.model;
+        addMessageToUI(msg.role, msg.content, metadata);
+    });
     
-    const avatar = document.createElement('div');
-    avatar.className = 'message-avatar';
-    avatar.innerHTML = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
-    
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-    
-    const textDiv = document.createElement('div');
-    textDiv.className = 'message-text';
-    
-    // Parse markdown/code blocks (basic)
-    let formattedContent = content
-        .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\n/g, '<br>');
-    
-    textDiv.innerHTML = formattedContent;
-    contentDiv.appendChild(textDiv);
-    
-    // Add metadata if available
-    if (Object.keys(metadata).length > 0 && !metadata.isError) {
-        const metaDiv = document.createElement('div');
-        metaDiv.className = 'message-meta';
-        let metaHtml = '';
-        
-        if (metadata.model) {
-            metaHtml += `<span><i class="fas fa-microchip"></i> ${metadata.model}</span>`;
-        }
-        if (metadata.processingTime) {
-            metaHtml += `<span><i class="fas fa-clock"></i> ${metadata.processingTime.toFixed(1)}s</span>`;
-        }
-        if (metadata.tokens) {
-            metaHtml += `<span><i class="fas fa-database"></i> ${metadata.tokens.total} tokens</span>`;
-        }
-        
-        metaDiv.innerHTML = metaHtml;
-        contentDiv.appendChild(metaDiv);
-    }
-    
-    messageDiv.appendChild(avatar);
-    messageDiv.appendChild(contentDiv);
-    
-    messagesList.appendChild(messageDiv);
-    
-    // Scroll to bottom
-    const container = document.getElementById('messagesContainer');
-    container.scrollTop = container.scrollHeight;
-}
-
-/**
- * Load available models from GitHub
- */
-async function loadModels() {
-    const modelSelector = document.getElementById('modelSelector');
-    if (!modelSelector) return;
-    
-    try {
-        const models = await api.getAvailableModels();
-        
-        modelSelector.innerHTML = '';
-        
-        models.forEach(model => {
-            const modelOption = document.createElement('div');
-            modelOption.className = `model-option ${model.id === currentModel ? 'active' : ''}`;
-            modelOption.setAttribute('data-model-id', model.id);
-            
-            modelOption.innerHTML = `
-                <span>${model.name}</span>
-                <span class="model-badge-tag" style="font-size: 0.7rem; color: var(--gray-500);">${model.publisher}</span>
-            `;
-            
-            modelOption.addEventListener('click', () => {
-                switchModel(model.id);
-            });
-            
-            modelSelector.appendChild(modelOption);
-        });
-        
-        // Update model info display
-        updateModelInfo(currentModel);
-        
-    } catch (error) {
-        console.error('Failed to load models:', error);
-        showNotification('خطا در دریافت لیست مدل‌ها', 'error');
-    }
-}
-
-/**
- * Switch between AI models
- */
-function switchModel(modelId) {
-    currentModel = modelId;
-    
-    // Update UI
-    document.querySelectorAll('.model-option').forEach(option => {
-        if (option.getAttribute('data-model-id') === modelId) {
-            option.classList.add('active');
+    // Update active state in history list
+    document.querySelectorAll('.history-item').forEach(item => {
+        if (item.getAttribute('data-chat-id') === chatId) {
+            item.classList.add('active');
         } else {
-            option.classList.remove('active');
+            item.classList.remove('active');
         }
     });
     
+    // Update model selector
+    const modelOption = document.querySelector(`.model-option[data-model-id="${currentModel}"]`);
+    if (modelOption) {
+        document.querySelectorAll('.model-option').forEach(opt => opt.classList.remove('active'));
+        modelOption.classList.add('active');
+    }
+    
     // Update model badge
-    const modelName = document.querySelector(`.model-option[data-model-id="${modelId}"] span:first-child`)?.textContent || modelId;
-    document.getElementById('currentModelName').textContent = modelName;
+    const selectedModel = availableModels?.find(m => m.id === currentModel);
+    const modelBadge = document.getElementById('currentModelName');
+    if (modelBadge && selectedModel) {
+        modelBadge.textContent = selectedModel.name;
+    }
     
-    // Update model info
-    updateModelInfo(modelId);
-    
-    // Save preference
-    localStorage.setItem('preferredModel', modelId);
-    
-    showNotification(`مدل به ${modelName} تغییر یافت`, 'success');
+    showNotification('گفتگو بارگذاری شد', 'success');
 }
 
 /**
- * Update model information display
+ * Clear current chat messages
  */
-async function updateModelInfo(modelId) {
-    const modelInfo = document.getElementById('modelInfo');
-    if (!modelInfo) return;
-    
-    try {
-        const models = await api.getAvailableModels();
-        const model = models.find(m => m.id === modelId);
-        
-        if (model) {
-            modelInfo.innerHTML = `
-                <div><strong>ناشر:</strong> ${model.publisher}</div>
-                <div><strong>نرخ محدودیت:</strong> ${model.rateLimitTier === 'high' ? 'بالا' : model.rateLimitTier === 'medium' ? 'متوسط' : 'پایین'}</div>
-                ${model.maxInputTokens ? `<div><strong>حداکثر ورودی:</strong> ${(model.maxInputTokens / 1000).toFixed(0)}K توکن</div>` : ''}
-                ${model.maxOutputTokens ? `<div><strong>حداکثر خروجی:</strong> ${(model.maxOutputTokens / 1000).toFixed(0)}K توکن</div>` : ''}
-            `;
-        }
-    } catch (error) {
-        console.error('Failed to update model info:', error);
+function clearCurrentChat() {
+    if (currentMessages.length === 0) {
+        showNotification('چت در حال حاضر خالی است', 'info');
+        return;
     }
+    
+    if (confirm('آیا از پاک کردن تمام پیام‌های این گفتگو مطمئن هستید؟')) {
+        currentMessages = [];
+        clearChatUI();
+        saveCurrentChat();
+        showNotification('گفتگو پاک شد', 'success');
+    }
+}
+
+/**
+ * Export current chat as text file
+ */
+function exportChat() {
+    if (currentMessages.length === 0) {
+        showNotification('هیچ پیامی برای خروجی گرفتن وجود ندارد', 'warning');
+        return;
+    }
+    
+    let exportText = `گفتگوی چت‌بات - ${new Date().toLocaleString('fa-IR')}\n`;
+    exportText += `${'='.repeat(50)}\n\n`;
+    
+    currentMessages.forEach(msg => {
+        const role = msg.role === 'user' ? '👤 شما' : '🤖 ربات';
+        exportText += `[${role}]\n${msg.content}\n\n${'-'.repeat(30)}\n\n`;
+    });
+    
+    const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat_export_${new Date().toISOString().slice(0, 19)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification('خروجی با موفقیت ذخیره شد', 'success');
+}
+
+/**
+ * Toggle between light and dark theme
+ */
+function toggleTheme() {
+    const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    applyTheme(newTheme);
+    showNotification(`تم ${newTheme === 'dark' ? 'تاریک' : 'روشن'} فعال شد`, 'info');
 }
 
 /**
@@ -329,20 +306,38 @@ async function updateModelInfo(modelId) {
  */
 function saveCurrentChat() {
     if (!currentChatId) {
-        currentChatId = generateId();
+        currentChatId = generateUniqueId();
     }
     
     const chats = getSavedChats();
+    
+    let chatTitle = 'گفتگوی جدید';
+    const firstUserMessage = currentMessages.find(m => m.role === 'user');
+    if (firstUserMessage) {
+        chatTitle = truncateText(firstUserMessage.content, 40);
+    }
+    
     chats[currentChatId] = {
         id: currentChatId,
-        title: currentMessages[0]?.content?.substring(0, 50) || 'گفتگوی جدید',
+        title: chatTitle,
         messages: currentMessages,
         model: currentModel,
-        timestamp: new Date().toISOString(),
+        timestamp: currentMessages[0]?.timestamp || new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
     
-    localStorage.setItem('chat_history', JSON.stringify(chats));
+    // Limit number of saved chats
+    const chatIds = Object.keys(chats);
+    const maxHistory = APP_CONFIG?.app?.maxHistoryItems || 50;
+    if (chatIds.length > maxHistory) {
+        const sorted = chatIds.sort((a, b) => 
+            new Date(chats[b].updatedAt) - new Date(chats[a].updatedAt)
+        );
+        const toDelete = sorted.slice(maxHistory);
+        toDelete.forEach(id => delete chats[id]);
+    }
+    
+    saveToLocalStorage('chat_history', chats);
     updateHistoryList();
 }
 
@@ -357,12 +352,32 @@ function loadChatHistory() {
     const chatIds = Object.keys(chats);
     if (chatIds.length > 0) {
         const mostRecent = chatIds.sort((a, b) => 
-            new Date(chats[b].timestamp) - new Date(chats[a].timestamp)
+            new Date(chats[b].updatedAt) - new Date(chats[a].updatedAt)
         )[0];
         loadChat(mostRecent);
     } else {
         startNewChat();
     }
+}
+
+/**
+ * Start a new chat conversation
+ */
+function startNewChat() {
+    currentChatId = generateUniqueId();
+    currentMessages = [];
+    
+    // Clear UI messages
+    clearChatUI();
+    
+    // Clear input
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) messageInput.value = '';
+    
+    // Save empty chat
+    saveCurrentChat();
+    
+    showNotification('گفتگوی جدید شروع شد', 'info');
 }
 
 /**
@@ -374,13 +389,14 @@ function updateHistoryList() {
     
     const chats = getSavedChats();
     const sortedChats = Object.values(chats).sort((a, b) => 
-        new Date(b.timestamp) - new Date(a.timestamp)
+        new Date(b.updatedAt) - new Date(a.updatedAt)
     );
     
     historyList.innerHTML = sortedChats.map(chat => `
         <div class="history-item ${chat.id === currentChatId ? 'active' : ''}" data-chat-id="${chat.id}">
             <i class="fas fa-comment"></i>
             <span>${escapeHtml(chat.title)}</span>
+            <span class="history-time">${formatTime(chat.updatedAt)}</span>
         </div>
     `).join('');
     
@@ -393,59 +409,17 @@ function updateHistoryList() {
 }
 
 /**
- * Start a new chat conversation
+ * Get saved chats from localStorage
+ * @returns {Object} Saved chats object
  */
-function startNewChat() {
-    currentChatId = generateId();
-    currentMessages = [];
-    
-    // Clear UI messages
-    const messagesList = document.getElementById('messagesList');
-    messagesList.innerHTML = '';
-    
-    // Show welcome screen
-    const welcomeScreen = document.getElementById('welcomeScreen');
-    if (welcomeScreen) {
-        welcomeScreen.style.display = 'flex';
-    }
-    
-    // Clear input
-    document.getElementById('messageInput').value = '';
-    
-    // Save empty chat
-    saveCurrentChat();
-    
-    showNotification('گفتگوی جدید شروع شد', 'info');
+function getSavedChats() {
+    return getFromLocalStorage('chat_history', {});
 }
 
 /**
- * Utility functions
+ * Get current model ID
+ * @returns {string} Current model ID
  */
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-function getSavedChats() {
-    const saved = localStorage.getItem('chat_history');
-    return saved ? JSON.parse(saved) : {};
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function showNotification(message, type = 'info') {
-    // Simple notification using alert for now
-    // In production, use a toast notification system
-    console.log(`[${type.toUpperCase()}] ${message}`);
-}
-
-function setupAutoResize() {
-    const textarea = document.getElementById('messageInput');
-    textarea.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
+function getCurrentModel() {
+    return currentModel;
 }
