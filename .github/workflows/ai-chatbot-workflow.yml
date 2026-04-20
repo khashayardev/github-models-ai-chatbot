@@ -42,10 +42,18 @@ jobs:
           MODEL_ID='${{ github.event.client_payload.model_id }}'
           CONVERSATION_HISTORY='${{ github.event.client_payload.history }}'
           
-          python model_handler.py --message "$MESSAGE" --model "$MODEL_ID" --history "$CONVERSATION_HISTORY"
+          # Run Python script and save response
+          python model_handler.py --message "$MESSAGE" --model "$MODEL_ID" --history "$CONVERSATION_HISTORY" > response.txt
+          
+          # Read response for output
+          RESPONSE=$(cat response.txt)
+          echo "response=$RESPONSE" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Save response
-        run: |
-          echo "Response processed successfully"
+      - name: Upload response artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-response
+          path: backend/response.txt
+          retention-days: 1
