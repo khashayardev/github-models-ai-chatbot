@@ -20,8 +20,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
       
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -31,29 +29,21 @@ jobs:
       - name: Install dependencies
         run: |
           cd backend
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
       
       - name: Process with GitHub Models
-        id: ai_process
         run: |
           cd backend
-          MESSAGE='${{ github.event.client_payload.message }}'
-          MODEL_ID='${{ github.event.client_payload.model_id }}'
-          CONVERSATION_HISTORY='${{ github.event.client_payload.history }}'
-          
-          # Run Python script and save response
-          python model_handler.py --message "$MESSAGE" --model "$MODEL_ID" --history "$CONVERSATION_HISTORY" > response.txt
-          
-          # Read response for output
-          RESPONSE=$(cat response.txt)
-          echo "response=$RESPONSE" >> $GITHUB_OUTPUT
+          python model_handler.py \
+            --message "${{ github.event.client_payload.message }}" \
+            --model "${{ github.event.client_payload.model_id }}" \
+            --history "${{ github.event.client_payload.history }}" > response.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Upload response artifact
+      - name: Upload response
         uses: actions/upload-artifact@v4
         with:
           name: chat-response
-          path: backend/response.txt
+          path: backend/response.json
           retention-days: 1
