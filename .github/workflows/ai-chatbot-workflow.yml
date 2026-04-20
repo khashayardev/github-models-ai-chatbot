@@ -34,10 +34,16 @@ jobs:
       - name: Process with GitHub Models
         run: |
           cd backend
+          
+          MESSAGE='${{ github.event.client_payload.message }}'
+          MODEL_ID='${{ github.event.client_payload.model_id }}'
+          HISTORY='${{ github.event.client_payload.history }}'
+          
           python model_handler.py \
-            --message "${{ github.event.client_payload.message }}" \
-            --model "${{ github.event.client_payload.model_id }}" \
-            --history "${{ github.event.client_payload.history }}" > response.json
+            --message "$MESSAGE" \
+            --model "$MODEL_ID" \
+            --history "$HISTORY" \
+            2>&1 | tee response.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
