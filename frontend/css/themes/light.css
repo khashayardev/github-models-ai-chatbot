@@ -1,0 +1,139 @@
+/**
+ * Dark Theme - تم تاریک
+ */
+
+.dark-theme {
+    --primary-50: #1e1b4b;
+    --primary-100: #2e2a6e;
+    --primary-200: #3e3a8e;
+    --primary-300: #4f4bae;
+    --primary-400: #6366f1;
+    --primary-500: #818cf8;
+    --primary-600: #a5b4fc;
+    --primary-700: #c7d2fe;
+    --primary-800: #e0e7ff;
+    --primary-900: #eef2ff;
+    
+    --gray-900: #f9fafb;
+    --gray-800: #f3f4f6;
+    --gray-700: #e5e7eb;
+    --gray-600: #d1d5db;
+    --gray-500: #9ca3af;
+    --gray-400: #6b7280;
+    --gray-300: #4b5563;
+    --gray-200: #374151;
+    --gray-100: #1f2937;
+    --gray-50: #111827;
+    
+    --bg-primary: #1f2937;
+    --bg-secondary: #111827;
+    --bg-tertiary: #374151;
+    
+    --text-primary: #f9fafb;
+    --text-secondary: #d1d5db;
+    --text-muted: #9ca3af;
+    
+    --border-color: #374151;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+.dark-theme body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.dark-theme .sidebar {
+    background: var(--bg-secondary);
+    border-right-color: var(--border-color);
+}
+
+.dark-theme .chat-header,
+.dark-theme .input-area {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+.dark-theme .message.assistant .message-content {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.dark-theme .message.user .message-content {
+    background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
+}
+
+.dark-theme .input-container {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+.dark-theme #messageInput {
+    color: var(--text-primary);
+}
+
+.dark-theme #messageInput::placeholder {
+    color: var(--text-muted);
+}
+
+.dark-theme .model-option {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+.dark-theme .model-option:hover {
+    background: var(--gray-300);
+}
+
+.dark-theme .model-option.active {
+    background: linear-gradient(135deg, var(--primary-100), var(--primary-200));
+    border-color: var(--primary-400);
+    color: var(--text-primary);
+}
+
+.dark-theme .history-item {
+    color: var(--text-secondary);
+}
+
+.dark-theme .history-item:hover,
+.dark-theme .history-item.active {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.dark-theme .modal-content {
+    background: var(--bg-secondary);
+}
+
+.dark-theme .setting-group label {
+    color: var(--text-secondary);
+}
+
+.dark-theme .setting-group input,
+.dark-theme .setting-group textarea {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.dark-theme .welcome-screen {
+    color: var(--text-secondary);
+}
+
+.dark-theme .welcome-screen h2 {
+    color: var(--text-primary);
+}
+
+.dark-theme .feature-card {
+    background: var(--bg-tertiary);
+}
+
+.dark-theme .btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.dark-theme .btn-secondary:hover {
+    background: var(--gray-300);
+}
