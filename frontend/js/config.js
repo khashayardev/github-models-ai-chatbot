@@ -1,14 +1,20 @@
 /**
- * Application Configuration
- * IMPORTANT: Replace these values with your actual GitHub details
+ * Application Configuration File
+ * IMPORTANT: Replace the placeholder values with your actual GitHub details
  */
 
 const APP_CONFIG = {
     // GitHub Repository Configuration
     github: {
-        owner: 'YOUR_GITHUB_USERNAME',      // Replace with your GitHub username
-        repo: 'github-models-ai-chatbot',    // Your repository name
-        token: 'YOUR_GITHUB_PAT_TOKEN'       // Your Personal Access Token (with repo scope)
+        // Your GitHub username (e.g., 'khashayar')
+        owner: 'YOUR_GITHUB_USERNAME',
+        
+        // Name of the repository you created (e.g., 'github-models-ai-chatbot')
+        repo: 'github-models-ai-chatbot',
+        
+        // Your Personal Access Token with 'repo' scope
+        // Get it from: https://github.com/settings/tokens
+        token: 'ghp_xxxxxxxxxxxx'
     },
     
     // Application Settings
@@ -24,9 +30,7 @@ const APP_CONFIG = {
     // API Endpoints
     api: {
         baseUrl: 'https://api.github.com',
-        dispatchEndpoint: (owner, repo) => `/repos/${owner}/${repo}/dispatches`,
-        workflowRunsEndpoint: (owner, repo) => `/repos/${owner}/${repo}/actions/runs`,
-        workflowArtifactsEndpoint: (owner, repo, runId) => `/repos/${owner}/${repo}/actions/runs/${runId}/artifacts`
+        modelsEndpoint: 'https://models.inference.ai.azure.com/models'
     },
     
     // UI Defaults
@@ -38,7 +42,7 @@ const APP_CONFIG = {
     }
 };
 
-// Export for use in other modules
+// Do not modify below this line
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = APP_CONFIG;
 }
